@@ -4,6 +4,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="OrderBook.fs" />
+    <Compile Include="Orders.fs" />
     <Compile Include="Controllers/OrderBookController.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>

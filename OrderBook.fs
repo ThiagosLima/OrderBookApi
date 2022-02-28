@@ -4,9 +4,10 @@ open System
 
 type SecuritySimbol = string
 
-type OrderDirection =
-  | Buy
-  | Sell
+type OrderDirection = string
+// type OrderDirection =
+//   | Buy
+//   | Sell
 
 type LimitPrice = decimal
 
