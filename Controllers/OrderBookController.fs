@@ -6,58 +6,74 @@ open Orders
 open Microsoft.Extensions.Logging
 
 type PostData =
-    { OrderId : OrderId 
+    { OrderId : OrderId
       SecuritySimbol: SecuritySimbol
       OrderDirection : OrderDirection
       Size : Size
       LimitPrice : LimitPrice }
 
-module OrderBookRepository = 
-  let mutable books =
-    [ { SecuritySimbol = "INTC"; Name = "Intel Corporation"; Bids = []; Asks = []} 
-      { SecuritySimbol = "APPL"; Name = "Apple Corporation"; Bids = []; Asks = []} ]
+type DeleteData =
+  { OrderId : OrderId
+    SecuritySimbol: SecuritySimbol
+    OrderDirection : OrderDirection }
 
-  let updateBooks newBooks =
-    books <- match newBooks with
-             | Some updatedBooks -> updatedBooks
-             | None -> books
-    newBooks
+module OrderBookRepository =
+    let mutable books =
+        [ { SecuritySimbol = "INTC"; Name = "Intel Corporation"; Bids = []; Asks = [] }
+          { SecuritySimbol = "APPL"; Name = "Apple Corporation"; Bids = []; Asks = [] } ]
 
-  let getBooks() = Some books
+    let updateBooks newBooks =
+        books <- match newBooks with
+                 | Some updatedBooks -> updatedBooks
+                 | None -> books
+        newBooks
 
-  let getOrderBook securitySimbol = 
-    books |> List.tryFind(fun book -> book.SecuritySimbol = securitySimbol)
+    let getBooks() = Some books
 
-  let postLimitOrderBook data =
-    tryCreateOrder data.OrderId data.Size data.LimitPrice
-    |> Option.map (addLimitOrder books data.SecuritySimbol data.OrderDirection)
-    |> updateBooks
+    let getOrderBook securitySimbol =
+        books |> List.tryFind(fun book -> book.SecuritySimbol = securitySimbol)
 
-[<AutoOpen>] 
+    let postLimitOrderBook (data:PostData) =
+        tryCreateOrder data.OrderId data.Size data.LimitPrice
+        |> Option.map (addLimitOrder books data.SecuritySimbol data.OrderDirection)
+        |> updateBooks
+
+    let deleteLimitOrderBook (data:DeleteData) =
+        tryCancelLimitOrder books data.OrderId data.SecuritySimbol data.OrderDirection
+        |> updateBooks
+
+[<AutoOpen>]
 module Helpers =
-  let asResponse (controller: ControllerBase) result =
-    match result with
-    | Some result -> result |> controller.Ok :> IActionResult
-    | None -> controller.NotFound "Not found" :> IActionResult
+    let asResponse (controller: ControllerBase) result =
+        match result with
+        | Some result -> result |> controller.Ok :> IActionResult
+        | None -> controller.NotFound "Not found" :> IActionResult
 
 
 [<ApiController>]
 type OrderBookController (logger : ILogger<OrderBookController>) =
-  inherit ControllerBase()
+    inherit ControllerBase()
 
-  [<Route("[controller]")>]
-  member this.Get() : IActionResult =
-    OrderBookRepository.getBooks()
-    |> asResponse this
+    [<Route("[controller]")>]
+    member this.Get() : IActionResult =
+        OrderBookRepository.getBooks()
+        |> asResponse this
 
-  [<Route("[controller]/{securitySimbol}")>]
-  member this.Get(securitySimbol) : IActionResult =
-    OrderBookRepository.getOrderBook securitySimbol
-    |> asResponse this
+    [<Route("[controller]/{securitySimbol}")>]
+    member this.Get(securitySimbol) : IActionResult =
+        OrderBookRepository.getOrderBook securitySimbol
+        |> asResponse this
 
-  [<Route("[controller]/limitorder")>]
-  [<HttpPost>]
-  member this.Post(data : PostData) : IActionResult =
-    data
-    |> OrderBookRepository.postLimitOrderBook
-    |> asResponse this
+    [<Route("[controller]/limitorder")>]
+    [<HttpPost>]
+    member this.Post(data : PostData) : IActionResult =
+        data
+        |> OrderBookRepository.postLimitOrderBook
+        |> asResponse this
+
+    [<Route("[controller]/limitorder")>]
+    [<HttpDelete>]
+    member this.Delete(data:DeleteData) : IActionResult =
+        data
+        |> OrderBookRepository.deleteLimitOrderBook
+        |> asResponse this
