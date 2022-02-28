@@ -71,15 +71,16 @@ let updateMarket (orders: Order list, market:Market) order:Order : Order list * 
                                    Shares = { SharePrice = order.Price
                                               ShareSize = order.Size } :: market.Shares
                                    TakenOrders = { Order = order.OrderId
-                                                   OrderStatus = Filled } :: market.TakenOrders })
+                                                   OrderStatus = "Complete filled." } :: market.TakenOrders })
         | result ->
             let updateSize = abs result
             let updatedOrder = { order with Size = updateSize }
+            let statusMsg = $"Partially filled. {updateSize} remain unfilled."
             (orders@[updatedOrder], { market with Size = 0
                                                   Shares = { SharePrice = order.Price
                                                              ShareSize = order.Size - updateSize } :: market.Shares
                                                   TakenOrders = { Order = order.OrderId
-                                                                  OrderStatus = Unfilled updateSize } :: market.TakenOrders })
+                                                                  OrderStatus = statusMsg } :: market.TakenOrders })
 
 let formatShares shares =
     shares
@@ -87,11 +88,14 @@ let formatShares shares =
     |> List.map (fun (price, size) -> { SharePrice = price
                                         ShareSize = (List.sumBy (fun s -> s.ShareSize) size) })
 
-let getAverage (shares : Share list) : decimal =
-    List.sumBy (fun share -> decimal (share.ShareSize)) shares
-    |> (/) (List.sumBy (fun share -> (share.SharePrice * decimal share.ShareSize)) shares)
+let getAverage (shares : Share list) : decimal option =
+    try
+        Some ( List.sumBy (fun share -> decimal (share.ShareSize)) shares
+               |> (/) (List.sumBy (fun share -> (share.SharePrice * decimal share.ShareSize)) shares))
+    with
+        | _ -> None
 
-let marketOrder books orderId time securitySimbol orderDirection size =
+let marketOrder books orderId securitySimbol orderDirection size =
     let index = List.findIndex (fun book -> book.SecuritySimbol = securitySimbol) books
     let initialMarket = { Size = size; TakenOrders = []; Shares = []; Average = 0m }
 
@@ -104,8 +108,15 @@ let marketOrder books orderId time securitySimbol orderDirection size =
             let (asks, market) = List.fold updateMarket ([], initialMarket) books.[index].Asks
             ({ books.[index] with Asks = asks }, market)
 
-    let status = if market.Size = 0 then Filled else Unfilled market.Size
+    let status =
+        match market.Size with
+        | 0 -> "Filled."
+        | result when result = size -> $"Unfilled. {market.Size} remain unfilled."
+        | _ -> $"Partially filled. {market.Size} remain unfilled."
+
     (List.updateAt index book books, { market with Shares = formatShares market.Shares
-                                                            Average = getAverage (formatShares market.Shares)
+                                                            Average = match getAverage (formatShares market.Shares) with
+                                                                      | Some average -> average
+                                                                      | None -> 0m
                                                             TakenOrders = { Order = orderId
                                                                             OrderStatus = status } :: market.TakenOrders })

@@ -29,9 +29,10 @@ type OrderBook =
 
 type Books = OrderBook list
 
-type OrderStatus =
-    | Filled
-    | Unfilled of Size
+type OrderStatus = string
+// type OrderStatus =
+//     | Filled
+//     | Unfilled of Size
 
 type TakenOrder =
     { Order: OrderId
